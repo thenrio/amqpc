@@ -55,3 +55,11 @@ $ amqpc -u amqp://guest:guest@localhost:5672/ -g 10 -i 1000 -n 100 -p your-excha
 * Package management
 * Tests
 * Publisher confirms
+
+- - -
+
+for François
+
+```
+./amqpc -p '' central.events $( cat ~/tmp/event.31.json )
+```
