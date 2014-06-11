@@ -1,18 +1,15 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/base64"
 	"flag"
 	"fmt"
+  "io/ioutil"
 	"log"
 	"os"
 	"time"
-        "io/ioutil"
 )
 
 const (
-	DEFAULT_EXCHANGE      string = " "
 	DEFAULT_EXCHANGE_TYPE string = "direct"
 	DEFAULT_QUEUE         string = "amqpc-queue"
 	DEFAULT_ROUTING_KEY   string = "amqpc-key"
@@ -72,11 +69,6 @@ func main() {
 	flag.Usage = usage
 	args := flag.Args()
 
-	if flag.NArg() != 3 {
-		log.Printf("You're missing arguments")
-		os.Exit(1)
-	}
-
 	exchange = &args[0]
 	routingKey = &args[1]
 
@@ -85,12 +77,13 @@ func main() {
         }
 
 	if *producer {
-		body = &args[2]
+    bytes, _ := ioutil.ReadAll(os.Stdin)
+    var body = string( bytes[ : ] )
 		for i := 0; i < *concurrency; i++ {
 			if *concurrencyPeriod > 0 {
 				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 			}
-			go startProducer(done, body, *messageCount, *interval)
+			go startProducer( done, &body, *messageCount, *interval )
 		}
 	} else {
 		queue = &args[2]
@@ -153,7 +146,7 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 
 	var i int = 1
 	for {
-		publish(p, body, i)
+		publish( p, body )
 
 		i++
 		if messageCount != 0 && i > messageCount {
@@ -166,14 +159,6 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 	done <- nil
 }
 
-func publish(p *Producer, body *string, i int) {
-	// Generate SHA for body
-	hasher := sha1.New()
-	hasher.Write([]byte(*body + string(i)))
-	sha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
-
-	// String to publish
-	bodyString := fmt.Sprintf("body: %s - hash: %s", *body, sha)
-
-	p.Publish(*exchange, *routingKey, bodyString)
+func publish( p *Producer, body *string ) {
+	p.Publish(*exchange, *routingKey, *body )
 }
