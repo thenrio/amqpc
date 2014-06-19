@@ -78,8 +78,8 @@ func (p *Producer) Publish(exchange, routingKey, body string) error {
 			ContentType:     "text/plain",
 			ContentEncoding: "",
 			Body:            []byte(body),
-			DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
-			Priority:        0,              // 0-9
+			DeliveryMode:    2,               // 1=non-persistent, 2=persistent
+			Priority:        0,               // 0-9
 			// a bunch of application/implementation-specific fields
 		},
 	); err != nil {
