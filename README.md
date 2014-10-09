@@ -13,7 +13,7 @@ $ amqpc -h
 amqpc is CLI tool for testing AMQP brokers
 Usage:
   Consumer : amqpc [options] -c exchange routingkey queue
-  Producer : amqpc [options] -p exchange routingkey [message]
+  Producer : amqpc [options] -p exchange routingkey < file
 
 Options:
   -c=true: Act as a consumer
@@ -43,23 +43,9 @@ $ go build
 $ # Start one consumer
 $ amqpc -u amqp://guest:guest@localhost:5672/ -c your-exchange routing-key your-queue
 $ # Start one producer
-$ amqpc -u amqp://guest:guest@localhost:5672/ -p your-exchange routing-key your-message
+$ amqpc -u amqp://guest:guest@localhost:5672/ -p your-exchange routing-key < a-file-with-your-message
 $ # Start 10 producers
-$ amqpc -u amqp://guest:guest@localhost:5672/ -g 10 -p your-exchange routing-key your-message
+$ amqpc -u amqp://guest:guest@localhost:5672/ -g 10 -p your-exchange routing-key < a-file-with-your-message
 $ # Start 10 producers, each one will be sending 100 at a rate of 1msg/s
-$ amqpc -u amqp://guest:guest@localhost:5672/ -g 10 -i 1000 -n 100 -p your-exchange routing-key your-message
-```
-
-## TODO
-
-* Package management
-* Tests
-* Publisher confirms
-
-- - -
-
-for François
-
-```
-./amqpc -p '' central.events $( cat ~/tmp/event.31.json )
+$ amqpc -u amqp://guest:guest@localhost:5672/ -g 10 -i 1000 -n 100 -p your-exchange routing-key < file
 ```
