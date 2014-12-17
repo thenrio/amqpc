@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"time"
+        "io/ioutil"
 )
 
 const (
@@ -21,6 +22,7 @@ const (
 	DEFAULT_MESSAGE_COUNT int    = 0
 	DEFAULT_CONCURRENCY   int    = 1
 	DEFAULT_CONCURRENCY_PERIOD   int    = 0
+	DEFAULT_QUIET         bool   = false
 )
 
 var (
@@ -40,6 +42,7 @@ var (
 	exchangeType = flag.String("t", DEFAULT_EXCHANGE_TYPE, "Exchange type - direct|fanout|topic|x-custom")
 	consumerTag  = flag.String("ct", DEFAULT_CONSUMER_TAG, "AMQP consumer tag (should not be blank)")
 	reliable     = flag.Bool("r", DEFAULT_RELIABLE, "Wait for the publisher confirmation before exiting")
+	quiet        = flag.Bool("q", DEFAULT_QUIET, "Turn off output")
 
 	// Test bench related
 	concurrency  = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
@@ -76,6 +79,10 @@ func main() {
 
 	exchange = &args[0]
 	routingKey = &args[1]
+
+        if *quiet {
+            log.SetOutput(ioutil.Discard)
+        }
 
 	if *producer {
 		body = &args[2]
