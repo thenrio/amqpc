@@ -125,17 +125,30 @@ func startConsumer(done chan error) {
 }
 
 func startProducer(done chan error, body *string, messageCount, interval int) {
-	p, err := NewProducer(
-		*uri,
-		*exchange,
-		*exchangeType,
-		*routingKey,
-		*consumerTag,
-		true,
+    var (
+         p *Producer = nil
+         err error = nil
 	)
 
 	if err != nil {
 		log.Fatalf("Error while starting producer : %s", err)
+	}
+
+	for {
+		p, err = NewProducer(
+				*uri,
+				*exchange,
+				*exchangeType,
+				*routingKey,
+				*consumerTag,
+				true,
+				)
+		if err != nil {
+			log.Printf("Error while starting producer : %s", err)
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
 	}
 
 	var i int = 1
