@@ -20,6 +20,7 @@ const (
 	DEFAULT_INTERVAL      int    = 500
 	DEFAULT_MESSAGE_COUNT int    = 0
 	DEFAULT_CONCURRENCY   int    = 1
+	DEFAULT_CONCURRENCY_PERIOD   int    = 0
 )
 
 var (
@@ -42,6 +43,7 @@ var (
 
 	// Test bench related
 	concurrency  = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
+	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
 	interval     = flag.Int("i", DEFAULT_INTERVAL, "(Producer only) Interval at which send messages (in ms)")
 	messageCount = flag.Int("n", DEFAULT_MESSAGE_COUNT, "(Producer only) Number of messages to send")
 )
@@ -78,6 +80,9 @@ func main() {
 	if *producer {
 		body = &args[2]
 		for i := 0; i < *concurrency; i++ {
+			if *concurrencyPeriod > 0 {
+				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
+			}
 			go startProducer(done, body, *messageCount, *interval)
 		}
 	} else {
