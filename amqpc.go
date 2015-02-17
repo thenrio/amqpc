@@ -3,23 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
-  "io/ioutil"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
 )
 
 const (
-	DEFAULT_EXCHANGE_TYPE string = "direct"
-	DEFAULT_QUEUE         string = "amqpc-queue"
-	DEFAULT_ROUTING_KEY   string = "amqpc-key"
-	DEFAULT_CONSUMER_TAG  string = "amqpc-consumer"
-	DEFAULT_RELIABLE      bool   = true
-	DEFAULT_INTERVAL      int    = 500
-	DEFAULT_MESSAGE_COUNT int    = 0
-	DEFAULT_CONCURRENCY   int    = 1
-	DEFAULT_CONCURRENCY_PERIOD   int    = 0
-	DEFAULT_QUIET         bool   = false
+	DEFAULT_EXCHANGE_TYPE      string = "direct"
+	DEFAULT_QUEUE              string = "amqpc-queue"
+	DEFAULT_ROUTING_KEY        string = "amqpc-key"
+	DEFAULT_CONSUMER_TAG       string = "amqpc-consumer"
+	DEFAULT_RELIABLE           bool   = true
+	DEFAULT_INTERVAL           int    = 500
+	DEFAULT_MESSAGE_COUNT      int    = 0
+	DEFAULT_CONCURRENCY        int    = 1
+	DEFAULT_CONCURRENCY_PERIOD int    = 0
+	DEFAULT_QUIET              bool   = false
 )
 
 var (
@@ -42,10 +42,10 @@ var (
 	quiet        = flag.Bool("q", DEFAULT_QUIET, "Turn off output")
 
 	// Test bench related
-	concurrency  = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
+	concurrency       = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
 	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
-	interval     = flag.Int("i", DEFAULT_INTERVAL, "(Producer only) Interval at which send messages (in ms)")
-	messageCount = flag.Int("n", DEFAULT_MESSAGE_COUNT, "(Producer only) Number of messages to send")
+	interval          = flag.Int("i", DEFAULT_INTERVAL, "(Producer only) Interval at which send messages (in ms)")
+	messageCount      = flag.Int("n", DEFAULT_MESSAGE_COUNT, "(Producer only) Number of messages to send")
 )
 
 func usage() {
@@ -72,18 +72,18 @@ func main() {
 	exchange = &args[0]
 	routingKey = &args[1]
 
-        if *quiet {
-            log.SetOutput(ioutil.Discard)
-        }
+	if *quiet {
+		log.SetOutput(ioutil.Discard)
+	}
 
 	if *producer {
-    bytes, _ := ioutil.ReadAll(os.Stdin)
-    var body = string( bytes[ : ] )
+		bytes, _ := ioutil.ReadAll(os.Stdin)
+		var body = string(bytes[:])
 		for i := 0; i < *concurrency; i++ {
 			if *concurrencyPeriod > 0 {
 				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 			}
-			go startProducer( done, &body, *messageCount, *interval )
+			go startProducer(done, &body, *messageCount, *interval)
 		}
 	} else {
 		queue = &args[2]
@@ -118,9 +118,9 @@ func startConsumer(done chan error) {
 }
 
 func startProducer(done chan error, body *string, messageCount, interval int) {
-    var (
-         p *Producer = nil
-         err error = nil
+	var (
+		p   *Producer = nil
+		err error     = nil
 	)
 
 	if err != nil {
@@ -129,13 +129,13 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 
 	for {
 		p, err = NewProducer(
-				*uri,
-				*exchange,
-				*exchangeType,
-				*routingKey,
-				*consumerTag,
-				true,
-				)
+			*uri,
+			*exchange,
+			*exchangeType,
+			*routingKey,
+			*consumerTag,
+			true,
+		)
 		if err != nil {
 			log.Printf("Error while starting producer : %s", err)
 			time.Sleep(time.Second)
@@ -146,7 +146,7 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 
 	var i int = 1
 	for {
-		publish( p, body )
+		publish(p, body)
 
 		i++
 		if messageCount != 0 && i > messageCount {
@@ -159,6 +159,6 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 	done <- nil
 }
 
-func publish( p *Producer, body *string ) {
-	p.Publish(*exchange, *routingKey, *body )
+func publish(p *Producer, body *string) {
+	p.Publish(*exchange, *routingKey, *body)
 }
