@@ -13,7 +13,7 @@ type Consumer struct {
 	done       chan error
 }
 
-func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Consumer, error) {
+func NewConsumer(amqpURI, queue, ctag string) (*Consumer, error) {
 	c := &Consumer{
 		connection: nil,
 		channel:    nil,
@@ -35,44 +35,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 		return nil, fmt.Errorf("hannel: %s", err)
 	}
 
-	log.Printf("Declaring Exchange (%s)", exchange)
-	if err = c.channel.ExchangeDeclare(
-		exchange,     // name of the exchange
-		exchangeType, // type
-		true,         // durable
-		false,        // delete when complete
-		false,        // internal
-		false,        // noWait
-		nil,          // arguments
-	); err != nil {
-		return nil, fmt.Errorf("Exchange Declare: %s", err)
-	}
-
-	log.Printf("Declaring Queue (%s)", queue)
-	state, err := c.channel.QueueDeclare(
-		queue, // name of the queue
-		true,  // durable
-		false, // delete when usused
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
-	)
-	if err != nil {
-		return nil, fmt.Errorf("Queue Declare: %s", err)
-	}
-
-	log.Printf("Declared Queue (%d messages, %d consumers), binding to Exchange (key '%s')", state.Messages, state.Consumers, key)
-	if err = c.channel.QueueBind(
-		queue,    // name of the queue
-		key,      // routingKey
-		exchange, // sourceExchange
-		false,    // noWait
-		nil,      // arguments
-	); err != nil {
-		return nil, fmt.Errorf("Queue Bind: %s", err)
-	}
-
-	log.Printf("Queue bound to Exchange, starting Consume (consumer tag '%s')", c.tag)
+	log.Printf("starting Consume (consumer tag '%s')", c.tag)
 	deliveries, err := c.channel.Consume(
 		queue, // name
 		c.tag, // consumerTag,

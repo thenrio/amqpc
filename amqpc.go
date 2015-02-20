@@ -69,14 +69,13 @@ func main() {
 	flag.Usage = usage
 	args := flag.Args()
 
-	exchange = &args[0]
-	routingKey = &args[1]
-
 	if *quiet {
 		log.SetOutput(ioutil.Discard)
 	}
 
 	if *producer {
+    exchange = &args[0]
+    routingKey = &args[1]
 		bytes, _ := ioutil.ReadAll(os.Stdin)
 		var body = string(bytes[:])
 		for i := 0; i < *concurrency; i++ {
@@ -86,7 +85,7 @@ func main() {
 			go startProducer(done, &body, *messageCount, *interval)
 		}
 	} else {
-		queue = &args[2]
+		queue = &args[0]
 		for i := 0; i < *concurrency; i++ {
 			go startConsumer(done)
 		}
@@ -103,10 +102,7 @@ func main() {
 func startConsumer(done chan error) {
 	_, err := NewConsumer(
 		*uri,
-		*exchange,
-		*exchangeType,
 		*queue,
-		*routingKey,
 		*consumerTag,
 	)
 
