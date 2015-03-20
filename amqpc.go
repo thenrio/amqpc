@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"text/template"
 	"time"
 )
 
@@ -49,11 +51,20 @@ var (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "amqpc is CLI tool for testing AMQP brokers\n")
-	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "  Consumer : amqpc [options] -c exchange routingkey queue\n")
-	fmt.Fprintf(os.Stderr, "  Producer : amqpc [options] -p exchange routingkey [message]\n")
-	fmt.Fprintf(os.Stderr, "\nOptions:\n")
+	readme := `
+  producer
+  --------
+    amqpc [options] -p exchange routingkey < file
+
+    file is processed using text.template with one argument, the index of message
+    index starts at 1
+  
+    eg: publish messages to default exchange ( '' ), routing key central.events
+
+    echo "message nº{{ . }}" | amqpc -c -n=1 '' central.events
+
+  `
+	fmt.Fprintf(os.Stderr, readme)
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -74,15 +85,15 @@ func main() {
 	}
 
 	if *producer {
-    exchange = &args[0]
-    routingKey = &args[1]
+		exchange = &args[0]
+		routingKey = &args[1]
 		bytes, _ := ioutil.ReadAll(os.Stdin)
-		var body = string(bytes[:])
+		body := string(bytes[:])
 		for i := 0; i < *concurrency; i++ {
 			if *concurrencyPeriod > 0 {
 				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 			}
-			go startProducer(done, &body, *messageCount, *interval)
+			go startProducer(done, body, *messageCount, *interval)
 		}
 	} else {
 		queue = &args[0]
@@ -113,7 +124,7 @@ func startConsumer(done chan error) {
 	<-done
 }
 
-func startProducer(done chan error, body *string, messageCount, interval int) {
+func startProducer(done chan error, body string, messageCount, interval int) {
 	var (
 		p   *Producer = nil
 		err error     = nil
@@ -140,21 +151,32 @@ func startProducer(done chan error, body *string, messageCount, interval int) {
 		}
 	}
 
-	var i int = 1
+	i := 1
+	duration := time.Duration(interval) * time.Millisecond
+	template := template.Must(template.New("body").Parse(body))
+
 	for {
-		publish(p, body)
+		publish(p, _body(template, i))
 
 		i++
 		if messageCount != 0 && i > messageCount {
 			break
 		}
 
-		time.Sleep(time.Duration(interval) * time.Millisecond)
+		time.Sleep(duration)
 	}
 
 	done <- nil
 }
 
-func publish(p *Producer, body *string) {
-	p.Publish(*exchange, *routingKey, *body)
+func _body(template *template.Template, i int) string {
+	buffer := new(bytes.Buffer)
+	if err := template.Execute(buffer, i); err != nil {
+		panic(err)
+	}
+	return buffer.String()
+}
+
+func publish(p *Producer, body string) {
+	p.Publish(*exchange, *routingKey, body)
 }
