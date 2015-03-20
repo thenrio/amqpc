@@ -24,13 +24,6 @@ const (
 	DEFAULT_QUIET              bool   = false
 )
 
-var (
-	exchange   *string
-	routingKey *string
-	queue      *string
-	body       *string
-)
-
 // Flags
 var (
 	consumer = flag.Bool("c", true, "Act as a consumer")
@@ -38,6 +31,7 @@ var (
 
 	// RabbitMQ related
 	uri          = flag.String("u", "amqp://guest:guest@localhost:5672/", "AMQP URI")
+  exchange      = flag.String("e", "", "exchange on which to pub" )
 	exchangeType = flag.String("t", DEFAULT_EXCHANGE_TYPE, "Exchange type - direct|fanout|topic|x-custom")
 	consumerTag  = flag.String("ct", DEFAULT_CONSUMER_TAG, "AMQP consumer tag (should not be blank)")
 	reliable     = flag.Bool("r", DEFAULT_RELIABLE, "Wait for the publisher confirmation before exiting")
@@ -54,14 +48,14 @@ func usage() {
 	readme := `
   producer
   --------
-    amqpc [options] -p exchange routingkey < file
+    amqpc [options] -p routingkey < file
 
     file is processed using text.template with one argument, the index of message
     index starts at 1
   
     eg: publish messages to default exchange ( '' ), routing key central.events
 
-    echo "message nº{{ . }}" | amqpc -c -n=1 '' central.events
+    echo "message nº{{ . }}" | amqpc -c -n=1 central.events
 
   `
 	fmt.Fprintf(os.Stderr, readme)
@@ -85,20 +79,19 @@ func main() {
 	}
 
 	if *producer {
-		exchange = &args[0]
-		routingKey = &args[1]
+		routingKey := args[0]
 		bytes, _ := ioutil.ReadAll(os.Stdin)
 		body := string(bytes[:])
 		for i := 0; i < *concurrency; i++ {
 			if *concurrencyPeriod > 0 {
 				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 			}
-			go startProducer(done, body, *messageCount, *interval)
+			go startProducer(done, routingKey, body, *messageCount, *interval)
 		}
 	} else {
-		queue = &args[0]
+		queue := args[0]
 		for i := 0; i < *concurrency; i++ {
-			go startConsumer(done)
+			go startConsumer(done, queue)
 		}
 	}
 
@@ -110,10 +103,10 @@ func main() {
 	log.Printf("Exiting...")
 }
 
-func startConsumer(done chan error) {
+func startConsumer(done chan error, queue string) {
 	_, err := NewConsumer(
 		*uri,
-		*queue,
+		queue,
 		*consumerTag,
 	)
 
@@ -124,7 +117,7 @@ func startConsumer(done chan error) {
 	<-done
 }
 
-func startProducer(done chan error, body string, messageCount, interval int) {
+func startProducer(done chan error, routingKey string, body string, messageCount, interval int) {
 	var (
 		p   *Producer = nil
 		err error     = nil
@@ -139,7 +132,7 @@ func startProducer(done chan error, body string, messageCount, interval int) {
 			*uri,
 			*exchange,
 			*exchangeType,
-			*routingKey,
+			routingKey,
 			*consumerTag,
 			true,
 		)
@@ -156,7 +149,7 @@ func startProducer(done chan error, body string, messageCount, interval int) {
 	template := template.Must(template.New("body").Parse(body))
 
 	for {
-		publish(p, _body(template, i))
+		publish(p, routingKey, _body(template, i))
 
 		i++
 		if messageCount != 0 && i > messageCount {
@@ -177,6 +170,6 @@ func _body(template *template.Template, i int) string {
 	return buffer.String()
 }
 
-func publish(p *Producer, body string) {
-	p.Publish(*exchange, *routingKey, body)
+func publish(p *Producer, routingKey string, body string) {
+	p.Publish(*exchange, routingKey, body)
 }
