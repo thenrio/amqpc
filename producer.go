@@ -26,47 +26,19 @@ func NewProducer(amqpURI, exchange, exchangeType, key, ctag string, reliable boo
 	log.Printf("Connecting to %s", amqpURI)
 	p.connection, err = amqp.Dial(amqpURI)
 	if err != nil {
-		return nil, fmt.Errorf("Dial: ", err)
+		return nil, fmt.Errorf("Dial: %v", err)
 	}
 
 	log.Printf("Getting Channel ")
 	p.channel, err = p.connection.Channel()
 	if err != nil {
-		return nil, fmt.Errorf("Channel: ", err)
+		return nil, fmt.Errorf("Channel: %v", err)
 	}
-
-	// if len( exchange ) > 0 {
-	//   log.Printf("Declaring Exchange (%s)", exchange)
-	//   if err := p.channel.ExchangeDeclare(
-	//     exchange,     // name
-	//     exchangeType, // type
-	//     true,         // durable
-	//     false,        // auto-deleted
-	//     false,        // internal
-	//     false,        // noWait
-	//     nil,          // arguments
-	//   ); err != nil {
-	//     return nil, fmt.Errorf("Exchange Declare: %s", err)
-	//   }
-	// }
-
-	// Reliable publisher confirms require confirm.select support from the
-	// connection.
-	// if reliable {
-	// 	if err := p.channel.Confirm(false); err != nil {
-	// 		return nil, fmt.Errorf("Channel could not be put into confirm mode: ", err)
-	// 	}
-
-	// 	ack, nack := p.channel.NotifyConfirm(make(chan uint64, 1), make(chan uint64, 1))
-
-	// 	// defer confirmOne(ack, nack)
-	// }
-
 	return p, nil
 }
 
 func (p *Producer) Publish(exchange, routingKey, body string) error {
-	log.Printf("Publishing %s (%dB)", body, len(body))
+	log.Printf("Publishing %d bytes to <%s:%s> \n%s", len(body), exchange, routingKey, body)
 
 	if err := p.channel.Publish(
 		exchange,   // publish to an exchange
@@ -83,22 +55,8 @@ func (p *Producer) Publish(exchange, routingKey, body string) error {
 			// a bunch of application/implementation-specific fields
 		},
 	); err != nil {
-		return fmt.Errorf("Exchange Publish: ", err)
+		return fmt.Errorf("Exchange Publish: %v", err)
 	}
 
 	return nil
-}
-
-// One would typically keep a channel of publishings, a sequence number, and a
-// set of unacknowledged sequence numbers and loop until the publishing channel
-// is closed.
-func confirmOne(ack, nack chan uint64) {
-	log.Printf("waiting for confirmation of one publishing")
-
-	select {
-	case tag := <-ack:
-		log.Printf("confirmed delivery with delivery tag: %d", tag)
-	case tag := <-nack:
-		log.Printf("failed delivery of delivery tag: %d", tag)
-	}
 }

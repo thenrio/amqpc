@@ -17,8 +17,6 @@ const (
 	DEFAULT_ROUTING_KEY        string = "amqpc-key"
 	DEFAULT_CONSUMER_TAG       string = "amqpc-consumer"
 	DEFAULT_RELIABLE           bool   = true
-	DEFAULT_INTERVAL           int    = 500
-	DEFAULT_MESSAGE_COUNT      int    = 0
 	DEFAULT_CONCURRENCY        int    = 1
 	DEFAULT_CONCURRENCY_PERIOD int    = 0
 	DEFAULT_QUIET              bool   = false
@@ -29,54 +27,55 @@ var (
 	consumer = flag.Bool("c", true, "Act as a consumer")
 	producer = flag.Bool("p", false, "Act as a producer")
 
+	silent = flag.Bool("silent", false, "Turn off output")
+
 	// RabbitMQ related
 	uri          = flag.String("u", "amqp://guest:guest@localhost:5672/", "AMQP URI")
-  exchange      = flag.String("e", "", "exchange on which to pub" )
+	exchange     = flag.String("e", "", "exchange on which to pub")
 	exchangeType = flag.String("t", DEFAULT_EXCHANGE_TYPE, "Exchange type - direct|fanout|topic|x-custom")
 	consumerTag  = flag.String("ct", DEFAULT_CONSUMER_TAG, "AMQP consumer tag (should not be blank)")
 	reliable     = flag.Bool("r", DEFAULT_RELIABLE, "Wait for the publisher confirmation before exiting")
-	quiet        = flag.Bool("q", DEFAULT_QUIET, "Turn off output")
 
 	// Test bench related
 	concurrency       = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
 	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
-	interval          = flag.Int("i", DEFAULT_INTERVAL, "(Producer only) Interval at which send messages (in ms)")
-	messageCount      = flag.Int("n", DEFAULT_MESSAGE_COUNT, "(Producer only) Number of messages to send")
+	interval          = flag.Int("i", 0, "(Producer only) Interval at which send messages (in ms)")
+	messageCount      = flag.Int("n", 0, "(Producer only) Number of messages to send")
 )
 
-func usage() {
-	readme := `
-  producer
-  --------
-    amqpc [options] -p routingkey < file
-
-    file is processed using text.template with one argument, the index of message
-    index starts at 1
-  
-    eg: publish messages to default exchange ( '' ), routing key central.events
-
-    echo "message nº{{ . }}" | amqpc -c -n=1 central.events
-
-  `
-	fmt.Fprintf(os.Stderr, readme)
-	flag.PrintDefaults()
-	os.Exit(1)
-}
-
 func init() {
-	flag.Usage = usage
+	flag.Usage = func() {
+		readme := `
+producer
+--------
+  amqpc [options] -p routingkey < file
+
+  file is processed using text.template with one argument, the index of message
+  index starts at 1
+
+  eg: publish messages to default exchange ( '' ), routing key central.events
+
+  echo 'message nº%s' | amqpc -c -n=1 somewhere
+
+  see 
+  * http://golang.org/pkg/text/template/
+  * https://golang.org/pkg/fmt/
+
+`
+		fmt.Fprintf(os.Stderr, readme, `{{ printf "%013d" . }}`)
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 	flag.Parse()
+	if *silent {
+		log.SetOutput(ioutil.Discard)
+	}
 }
 
 func main() {
 	done := make(chan error)
 
-	flag.Usage = usage
 	args := flag.Args()
-
-	if *quiet {
-		log.SetOutput(ioutil.Discard)
-	}
 
 	if *producer {
 		routingKey := args[0]
@@ -163,8 +162,8 @@ func startProducer(done chan error, routingKey string, body string, messageCount
 }
 
 func _body(template *template.Template, i int) string {
-	buffer := new(bytes.Buffer)
-	if err := template.Execute(buffer, i); err != nil {
+	var buffer bytes.Buffer
+	if err := template.Execute(&buffer, i); err != nil {
 		panic(err)
 	}
 	return buffer.String()
