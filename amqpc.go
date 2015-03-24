@@ -22,12 +22,12 @@ const (
 	DEFAULT_QUIET              bool   = false
 )
 
+var silent bool
+
 // Flags
 var (
 	consumer = flag.Bool("c", true, "Act as a consumer")
 	producer = flag.Bool("p", false, "Act as a producer")
-
-	silent = flag.Bool("silent", false, "Turn off output")
 
 	// RabbitMQ related
 	uri          = flag.String("u", "amqp://guest:guest@localhost:5672/", "AMQP URI")
@@ -44,6 +44,9 @@ var (
 )
 
 func init() {
+	flag.BoolVar(&silent, "silent", false, "silent ( mute )")
+	flag.BoolVar(&silent, "s", false, "shorthand for silent")
+
 	flag.Usage = func() {
 		readme := `
 producer
@@ -67,7 +70,7 @@ producer
 		os.Exit(1)
 	}
 	flag.Parse()
-	if *silent {
+	if silent {
 		log.SetOutput(ioutil.Discard)
 	}
 }
