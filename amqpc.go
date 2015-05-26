@@ -56,11 +56,15 @@ producer
   file is processed using text.template with one argument, the index of message
   index starts at 1
 
-  eg: publish messages to default exchange ( '' ), routing key central.events
+  eg: publish 10 messages to default exchange ( '' ), routing key central.events, each having id in sequence ( 1..10 )
 
-  echo 'message nº%s' | amqpc -c -n=1 somewhere
+    echo '{"id":{{ . }}}' | amqpc -p -n=10 central.events
 
-  see 
+  eg: publish 1 message to somewhere
+
+    echo 'message nº{{ . }}' | amqpc -p -n=1 somewhere
+
+  see
   * http://golang.org/pkg/text/template/
   * https://golang.org/pkg/fmt/
 
