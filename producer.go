@@ -4,55 +4,68 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"log"
+	"strings"
 )
 
 type Producer struct {
-	connection *amqp.Connection
 	channel    *amqp.Channel
-	tag        string
+	exchange   string
+	routingKey string
+	headers    amqp.Table
 	done       chan error
 }
 
-func NewProducer(amqpURI, exchange, exchangeType, key, ctag string, reliable bool) (*Producer, error) {
-	p := &Producer{
-		connection: nil,
-		channel:    nil,
-		tag:        ctag,
-		done:       make(chan error),
-	}
-
-	var err error
-
-	log.Printf("Connecting to %s", amqpURI)
-	p.connection, err = amqp.Dial(amqpURI)
+func NewProducer(uri, exchange, routingKey, header string) (*Producer, error) {
+	log.Printf("Connecting to %s", uri)
+	connection, err := amqp.Dial(uri)
 	if err != nil {
 		return nil, fmt.Errorf("Dial: %v", err)
 	}
 
 	log.Printf("Getting Channel ")
-	p.channel, err = p.connection.Channel()
+	channel, err := connection.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("Channel: %v", err)
 	}
-	return p, nil
+	headers, err := parse(header)
+	if err != nil {
+		return nil, err
+	}
+	return &Producer{
+		channel:    channel,
+		exchange:   exchange,
+		routingKey: routingKey,
+		headers:    headers,
+		done:       make(chan error),
+	}, nil
 }
 
-func (p *Producer) Publish(exchange, routingKey, body string) error {
-	log.Printf("Publishing %d bytes to <%s:%s> \n%s", len(body), exchange, routingKey, body)
+func parse(header string) (amqp.Table, error) {
+	if len(header) == 0 {
+		return amqp.Table{}, nil
+	}
+	values := strings.Split(header, ":")
+	if len(values) == 2 {
+		return amqp.Table{values[0]: values[1]}, nil
+	}
+	return nil, fmt.Errorf("bad %s", header)
+}
+
+func (p *Producer) Publish(body string) error {
+	log.Printf("Publishing %d bytes to <%s:%s> \n%s", len(body), p.exchange, p.routingKey, body)
 
 	if err := p.channel.Publish(
-		exchange,   // publish to an exchange
-		routingKey, // routing to 0 or more queues
-		false,      // mandatory
-		false,      // immediate
+		p.exchange,   // publish to an exchange
+		p.routingKey, // routing to 0 or more queues
+		false,        // mandatory
+		false,        // immediate
 		amqp.Publishing{
-			Headers:         amqp.Table{},
+			Headers:         p.headers,
 			ContentType:     "text/plain",
 			ContentEncoding: "",
 			Body:            []byte(body),
 			DeliveryMode:    2, // 1=non-persistent, 2=persistent
 			Priority:        0, // 0-9
-			// a bunch of application/implementation-specific fields
 		},
 	); err != nil {
 		return fmt.Errorf("Exchange Publish: %v", err)

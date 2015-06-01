@@ -12,35 +12,27 @@ import (
 )
 
 const (
-	DEFAULT_EXCHANGE_TYPE      string = "direct"
-	DEFAULT_QUEUE              string = "amqpc-queue"
-	DEFAULT_ROUTING_KEY        string = "amqpc-key"
-	DEFAULT_CONSUMER_TAG       string = "amqpc-consumer"
-	DEFAULT_RELIABLE           bool   = true
-	DEFAULT_CONCURRENCY        int    = 1
-	DEFAULT_CONCURRENCY_PERIOD int    = 0
-	DEFAULT_QUIET              bool   = false
+	DEFAULT_CONCURRENCY        int  = 1
+	DEFAULT_CONCURRENCY_PERIOD int  = 0
+	DEFAULT_QUIET              bool = false
 )
 
 var silent bool
 
 // Flags
 var (
-	consumer = flag.Bool("c", true, "Act as a consumer")
-	producer = flag.Bool("p", false, "Act as a producer")
-
 	// RabbitMQ related
-	uri          = flag.String("u", "amqp://guest:guest@localhost:5672/", "AMQP URI")
-	exchange     = flag.String("e", "", "exchange on which to pub")
-	exchangeType = flag.String("t", DEFAULT_EXCHANGE_TYPE, "Exchange type - direct|fanout|topic|x-custom")
-	consumerTag  = flag.String("ct", DEFAULT_CONSUMER_TAG, "AMQP consumer tag (should not be blank)")
-	reliable     = flag.Bool("r", DEFAULT_RELIABLE, "Wait for the publisher confirmation before exiting")
+	uri      = flag.String("u", "amqp://guest:guest@localhost:5672", "AMQP URI")
+	exchange = flag.String("e", "", "exchange on which to pub")
 
 	// Test bench related
 	concurrency       = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
 	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
-	interval          = flag.Int("i", 0, "(Producer only) Interval at which send messages (in ms)")
-	messageCount      = flag.Int("n", 0, "(Producer only) Number of messages to send")
+	interval          = flag.Int("i", 0, "Interval at which send messages (in ms)")
+	messageCount      = flag.Int("n", 0, "Number of messages to send")
+
+	// headers
+	header = flag.String("header", "", "optional header, value is k:v much like curl ( multiple value behavior unknown )")
 )
 
 func init() {
@@ -48,28 +40,25 @@ func init() {
 	flag.BoolVar(&silent, "s", false, "shorthand for silent")
 
 	flag.Usage = func() {
-		readme := `
-producer
---------
-  amqpc [options] -p routingkey < file
+		fmt.Printf(`
+  amqpc [options] routingkey < file
 
   file is processed using text.template with one argument, the index of message
   index starts at 1
 
   eg: publish 10 messages to default exchange ( '' ), routing key central.events, each having id in sequence ( 1..10 )
 
-    echo '{"id":{{ . }}}' | amqpc -p -n=10 central.events
+    echo '{"id":{{ . }}}' | amqpc -n=10 central.events
 
-  eg: publish 1 message to somewhere
+  eg: pub 1 message to somewhere with header content-type:application/vnd.me.awesome.1+json
 
-    echo 'message nº{{ . }}' | amqpc -p -n=1 somewhere
+  echo 'message nº{{ . }}' | amqpc -n=1 --header=content-type:application/vnd.me.awesome.1+json somewhere
 
   see
   * http://golang.org/pkg/text/template/
   * https://golang.org/pkg/fmt/
 
-`
-		fmt.Fprintf(os.Stderr, readme, `{{ printf "%013d" . }}`)
+`)
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -84,21 +73,14 @@ func main() {
 
 	args := flag.Args()
 
-	if *producer {
-		routingKey := args[0]
-		bytes, _ := ioutil.ReadAll(os.Stdin)
-		body := string(bytes[:])
-		for i := 0; i < *concurrency; i++ {
-			if *concurrencyPeriod > 0 {
-				time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
-			}
-			go startProducer(done, routingKey, body, *messageCount, *interval)
+	routingKey := args[0]
+	bytes, _ := ioutil.ReadAll(os.Stdin)
+	body := string(bytes[:])
+	for i := 0; i < *concurrency; i++ {
+		if *concurrencyPeriod > 0 {
+			time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 		}
-	} else {
-		queue := args[0]
-		for i := 0; i < *concurrency; i++ {
-			go startConsumer(done, queue)
-		}
+		go startProducer(done, *uri, *exchange, routingKey, *messageCount, *interval, *header, body)
 	}
 
 	err := <-done
@@ -109,21 +91,7 @@ func main() {
 	log.Printf("Exiting...")
 }
 
-func startConsumer(done chan error, queue string) {
-	_, err := NewConsumer(
-		*uri,
-		queue,
-		*consumerTag,
-	)
-
-	if err != nil {
-		log.Fatalf("Error while starting consumer : %s", err)
-	}
-
-	<-done
-}
-
-func startProducer(done chan error, routingKey string, body string, messageCount, interval int) {
+func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, header string, body string) {
 	var (
 		p   *Producer = nil
 		err error     = nil
@@ -134,14 +102,7 @@ func startProducer(done chan error, routingKey string, body string, messageCount
 	}
 
 	for {
-		p, err = NewProducer(
-			*uri,
-			*exchange,
-			*exchangeType,
-			routingKey,
-			*consumerTag,
-			true,
-		)
+		p, err = NewProducer(uri, exchange, routingKey, header)
 		if err != nil {
 			log.Printf("Error while starting producer : %s", err)
 			time.Sleep(time.Second)
@@ -155,7 +116,7 @@ func startProducer(done chan error, routingKey string, body string, messageCount
 	template := template.Must(template.New("body").Parse(body))
 
 	for {
-		publish(p, routingKey, _body(template, i))
+		p.Publish(_body(template, i))
 
 		i++
 		if messageCount != 0 && i > messageCount {
@@ -174,8 +135,4 @@ func _body(template *template.Template, i int) string {
 		panic(err)
 	}
 	return buffer.String()
-}
-
-func publish(p *Producer, routingKey string, body string) {
-	p.Publish(*exchange, routingKey, body)
 }
