@@ -29,7 +29,7 @@ var (
 	concurrency       = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
 	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
 	interval          = flag.Int("i", 0, "Interval at which send messages (in ms)")
-	messageCount      = flag.Int("n", 0, "Number of messages to send")
+	messageCount      = flag.Int("n", 1, "Number of messages to send, use 0 for infinite loop")
 
 	// message
 	header      = flag.String("header", "", "optional header, value is k:v much like curl ( multiple value behavior unknown )")
