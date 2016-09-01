@@ -8,14 +8,15 @@ import (
 )
 
 type Producer struct {
-	channel    *amqp.Channel
-	exchange   string
-	routingKey string
-	headers    amqp.Table
-	done       chan error
+	channel     *amqp.Channel
+	exchange    string
+	routingKey  string
+	contentType string
+	headers     amqp.Table
+	done        chan error
 }
 
-func NewProducer(uri, exchange, routingKey, header string) (*Producer, error) {
+func NewProducer(uri, exchange, routingKey, contentType, header string) (*Producer, error) {
 	log.Printf("Connecting to %s", uri)
 	connection, err := amqp.Dial(uri)
 	if err != nil {
@@ -32,11 +33,12 @@ func NewProducer(uri, exchange, routingKey, header string) (*Producer, error) {
 		return nil, err
 	}
 	return &Producer{
-		channel:    channel,
-		exchange:   exchange,
-		routingKey: routingKey,
-		headers:    headers,
-		done:       make(chan error),
+		channel:     channel,
+		exchange:    exchange,
+		routingKey:  routingKey,
+		contentType: contentType,
+		headers:     headers,
+		done:        make(chan error),
 	}, nil
 }
 
@@ -61,7 +63,7 @@ func (p *Producer) Publish(body string) error {
 		false,        // immediate
 		amqp.Publishing{
 			Headers:         p.headers,
-			ContentType:     "text/plain",
+			ContentType:     p.contentType,
 			ContentEncoding: "",
 			Body:            []byte(body),
 			DeliveryMode:    2, // 1=non-persistent, 2=persistent

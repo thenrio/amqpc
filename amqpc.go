@@ -31,8 +31,9 @@ var (
 	interval          = flag.Int("i", 0, "Interval at which send messages (in ms)")
 	messageCount      = flag.Int("n", 0, "Number of messages to send")
 
-	// headers
-	header = flag.String("header", "", "optional header, value is k:v much like curl ( multiple value behavior unknown )")
+	// message
+	header      = flag.String("header", "", "optional header, value is k:v much like curl ( multiple value behavior unknown )")
+	contentType = flag.String("content-type", "application/octet-stream", "content-type is not in headers amqp protocol...")
 )
 
 func init() {
@@ -50,9 +51,14 @@ func init() {
 
     echo '{"id":{{ . }}}' | amqpc -n=10 central.events
 
-  eg: pub 1 message to somewhere with header content-type:application/vnd.me.awesome.1+json
+  eg: pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
 
-  echo 'message nº{{ . }}' | amqpc -n=1 --header=content-type:application/vnd.me.awesome.1+json somewhere
+  echo 'message nº{{ . }}' | amqpc -n=1 --content-type=application/vnd.me.awesome.1+json somewhere
+
+	eg: pub 1 message to somewhere with header include:[batteries]
+
+	echo 'message nº{{ . }}' | amqpc -n=1 --header=include:[batteries] somewhere
+
 
   see
   * http://golang.org/pkg/text/template/
@@ -80,7 +86,7 @@ func main() {
 		if *concurrencyPeriod > 0 {
 			time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
 		}
-		go startProducer(done, *uri, *exchange, routingKey, *messageCount, *interval, *header, body)
+		go startProducer(done, *uri, *exchange, routingKey, *messageCount, *interval, *contentType, *header, body)
 	}
 
 	err := <-done
@@ -91,7 +97,7 @@ func main() {
 	log.Printf("Exiting...")
 }
 
-func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, header string, body string) {
+func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, contentType string, header string, body string) {
 	var (
 		p   *Producer = nil
 		err error     = nil
@@ -102,7 +108,7 @@ func startProducer(done chan error, uri string, exchange string, routingKey stri
 	}
 
 	for {
-		p, err = NewProducer(uri, exchange, routingKey, header)
+		p, err = NewProducer(uri, exchange, routingKey, contentType, header)
 		if err != nil {
 			log.Printf("Error while starting producer : %s", err)
 			time.Sleep(time.Second)
