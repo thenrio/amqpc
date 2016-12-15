@@ -71,7 +71,7 @@ func parse3(value string) interface{} {
 }
 
 func (p *Producer) Publish(body string) error {
-	log.Printf("Publishing %d bytes to <%s:%s> \n%s", len(body), p.exchange, p.routingKey, body)
+	log.Printf("%d bytes to <%s:%s> as %s with headers:%s\n%s", len(body), p.exchange, p.routingKey, p.contentType, p.headers, body)
 
 	if err := p.channel.Publish(
 		p.exchange,   // publish to an exchange

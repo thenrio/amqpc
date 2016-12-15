@@ -61,7 +61,7 @@ func parsecli() []string {
 		"header, value is k:v, that set header[k]=v (see usage for details)")
 
 	flag.Usage = func() {
-		s := `
+		usage := `
 amqpc [options] routingkey < file
 version: %s
 
@@ -88,21 +88,36 @@ pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
 
 	echo 'message nº{{ . }}' | amqpc --content-type=application/vnd.me.awesome.1+json somewhere
 
-pub 1 message to somewhere with header include, as a list of values a, b, c
+pub 1 message to somewhere with header include, as a list of values [a, b, c]
 
 	echo 'message nº{{ . }}' | amqpc --header=include:[a,b,c] somewhere
 
 pub 1 message to somewhere with header include being a,b,c
 
+template
+========
 see
 * http://golang.org/pkg/text/template/
 * https://golang.org/pkg/fmt/
+
+caveat emptor
+=============
+cli is strict on [options] args.
+options after args are silently ignored.
+this is the behavior or flag core golang library.
+
+> Flag parsing stops just before the first non-flag argument
+
+options
+=======
 `
-		fmt.Printf(s, version)
+		fmt.Printf(usage, version)
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
 	flag.Parse()
+
 	if options.version {
 		fmt.Println(version)
 		os.Exit(0)
@@ -133,7 +148,7 @@ func main() {
 		log.Fatalf("Error : %s", err)
 	}
 
-	log.Printf("Exiting...")
+	log.Printf("done.")
 }
 
 func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, contentType string, headers []string, body string) {
