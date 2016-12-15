@@ -11,82 +11,107 @@ import (
 	"time"
 )
 
-const (
-	DEFAULT_CONCURRENCY        int  = 1
-	DEFAULT_CONCURRENCY_PERIOD int  = 0
-	DEFAULT_QUIET              bool = false
-)
+// types
+type headers []string
 
-var silent bool
+func (h *headers) String() string {
+	return fmt.Sprintf("%s", []string(*h))
+}
 
-// Flags
-var (
-	// RabbitMQ related
-	uri      = flag.String("u", "amqp://guest:guest@localhost:5672", "AMQP URI")
-	exchange = flag.String("e", "", "exchange on which to pub")
+func (h *headers) Set(s string) error {
+	*h = append(*h, s)
+	return nil
+}
 
-	// Test bench related
-	concurrency       = flag.Int("g", DEFAULT_CONCURRENCY, "Concurrency")
-	concurrencyPeriod = flag.Int("gp", DEFAULT_CONCURRENCY_PERIOD, "Concurrency period in ms (Producer only) - Interval at which spawn new Producer when concurrency is set")
-	interval          = flag.Int("i", 0, "Interval at which send messages (in ms)")
-	messageCount      = flag.Int("n", 1, "Number of messages to send, use 0 for infinite loop")
+const version = "0.1.0"
 
-	// message
-	header      = flag.String("header", "", "optional header, value is k:v much like curl ( multiple value behavior unknown )")
-	contentType = flag.String("content-type", "application/octet-stream", "content-type is not in headers amqp protocol...")
-)
+var options struct {
+	concurrency int
+	contentType string
+	count       int
+	exchange    string
+	headers     headers
+	interval    int
+	period      int
+	silent      bool
+	uri         string
+	version     bool
+}
 
-func init() {
-	flag.BoolVar(&silent, "silent", false, "silent ( mute )")
-	flag.BoolVar(&silent, "s", false, "shorthand for silent")
+func parsecli() []string {
+	flag.BoolVar(&options.silent, "silent", false,
+		"silent (mute)")
+	flag.BoolVar(&options.version, "version", false,
+		"print version and exit")
+	flag.IntVar(&options.concurrency, "concurrency", 1,
+		"number of client (connections)")
+	flag.IntVar(&options.count, "count", 1,
+		"count of messages to send, use 0 for infinite loop")
+	flag.IntVar(&options.interval, "interval", 0,
+		"interval at which send messages (in ms)")
+	flag.IntVar(&options.period, "period", 0,
+		"concurrency period in ms - Interval at which spawn new Producer when concurrency is set")
+	flag.StringVar(&options.contentType, "content-type",
+		"application/octet-stream", "content-type is not in headers amqp protocol...")
+	flag.StringVar(&options.exchange, "exchange", "",
+		"exchange on which to pub")
+	flag.StringVar(&options.uri, "uri", "amqp://guest:guest@localhost:5672",
+		"server uri")
+	flag.Var(&options.headers, "header",
+		"header, value is k:v, that set header[k]=v (much like curl, can be use many times to provide different k)")
 
 	flag.Usage = func() {
-		fmt.Printf(`
-  amqpc [options] routingkey < file
+		s := `
+amqpc [options] routingkey < file
+version: %s 
 
-  file is processed using text.template with one argument, the index of message
-  index starts at 1
+file is processed using text.template with one argument, the index of message
+index starts at 1
 
-  eg: publish 10 messages to default exchange ( '' ), routing key central.events, each having id in sequence ( 1..10 )
+eg: publish 10 messages to default exchange ( '' ), routing key central.events, each having id in sequence 1:10
 
-    echo '{"id":{{ . }}}' | amqpc -n=10 central.events
+  echo '{"id":{{ . }}}' | amqpc -n=10 central.events
 
-  eg: pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
+eg: pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
 
-  echo 'message nº{{ . }}' | amqpc -n=1 --content-type=application/vnd.me.awesome.1+json somewhere
+echo 'message nº{{ . }}' | amqpc -n=1 --content-type=application/vnd.me.awesome.1+json somewhere
 
-	eg: pub 1 message to somewhere with header include:[batteries]
+eg: pub 1 message to somewhere with header include:[batteries]
 
-	echo 'message nº{{ . }}' | amqpc -n=1 --header=include:[batteries] somewhere
+echo 'message nº{{ . }}' | amqpc -n=1 --header=include:[batteries] somewhere
 
-
-  see
-  * http://golang.org/pkg/text/template/
-  * https://golang.org/pkg/fmt/
-
-`)
+see
+* http://golang.org/pkg/text/template/
+* https://golang.org/pkg/fmt/
+`
+		fmt.Printf(s, version)
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 	flag.Parse()
-	if silent {
+	if options.version {
+		fmt.Println(version)
+		os.Exit(0)
+	}
+	if options.silent {
 		log.SetOutput(ioutil.Discard)
 	}
+	return flag.Args()
 }
 
 func main() {
 	done := make(chan error)
 
-	args := flag.Args()
+	args := parsecli()
 
 	routingKey := args[0]
 	bytes, _ := ioutil.ReadAll(os.Stdin)
 	body := string(bytes[:])
-	for i := 0; i < *concurrency; i++ {
-		if *concurrencyPeriod > 0 {
-			time.Sleep(time.Duration(*concurrencyPeriod) * time.Millisecond)
+	for i := 0; i < options.concurrency; i++ {
+		if options.period > 0 {
+			time.Sleep(time.Duration(options.period) * time.Millisecond)
 		}
-		go startProducer(done, *uri, *exchange, routingKey, *messageCount, *interval, *contentType, *header, body)
+		go startProducer(done, options.uri, options.exchange, routingKey, options.count, options.interval, options.contentType, []string(options.headers), body)
 	}
 
 	err := <-done
@@ -97,7 +122,7 @@ func main() {
 	log.Printf("Exiting...")
 }
 
-func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, contentType string, header string, body string) {
+func startProducer(done chan error, uri string, exchange string, routingKey string, messageCount, interval int, contentType string, headers []string, body string) {
 	var (
 		p   *Producer = nil
 		err error     = nil
@@ -108,7 +133,7 @@ func startProducer(done chan error, uri string, exchange string, routingKey stri
 	}
 
 	for {
-		p, err = NewProducer(uri, exchange, routingKey, contentType, header)
+		p, err = NewProducer(uri, exchange, routingKey, contentType, headers)
 		if err != nil {
 			log.Printf("Error while starting producer : %s", err)
 			time.Sleep(time.Second)

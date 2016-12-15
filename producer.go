@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"log"
+	"regexp"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ type Producer struct {
 	done        chan error
 }
 
-func NewProducer(uri, exchange, routingKey, contentType, header string) (*Producer, error) {
+func NewProducer(uri, exchange, routingKey, contentType string, headers []string) (*Producer, error) {
 	log.Printf("Connecting to %s", uri)
 	connection, err := amqp.Dial(uri)
 	if err != nil {
@@ -28,7 +29,7 @@ func NewProducer(uri, exchange, routingKey, contentType, header string) (*Produc
 	if err != nil {
 		return nil, fmt.Errorf("Channel: %v", err)
 	}
-	headers, err := parse(header)
+	table, err := parse(headers)
 	if err != nil {
 		return nil, err
 	}
@@ -37,20 +38,36 @@ func NewProducer(uri, exchange, routingKey, contentType, header string) (*Produc
 		exchange:    exchange,
 		routingKey:  routingKey,
 		contentType: contentType,
-		headers:     headers,
+		headers:     table,
 		done:        make(chan error),
 	}, nil
 }
 
-func parse(header string) (amqp.Table, error) {
-	if len(header) == 0 {
-		return amqp.Table{}, nil
+func parse(headers []string) (amqp.Table, error) {
+	table := make(amqp.Table)
+	for _, header := range headers {
+		if err := parse2(header, table); err != nil {
+			return nil, err
+		}
 	}
+	return table, nil
+}
+
+func parse2(header string, table amqp.Table) error {
 	values := strings.Split(header, ":")
 	if len(values) == 2 {
-		return amqp.Table{values[0]: values[1]}, nil
+		table[values[0]] = parse3(values[1])
+		return nil
 	}
-	return nil, fmt.Errorf("bad %s", header)
+	return fmt.Errorf("bad %s", header)
+}
+
+func parse3(value string) interface{} {
+	re := regexp.MustCompile("^\\[(.*)\\]$")
+	if match := re.FindStringSubmatch(value); match != nil {
+		return strings.Split(match[1], ",")
+	}
+	return value
 }
 
 func (p *Producer) Publish(body string) error {
