@@ -58,27 +58,41 @@ func parsecli() []string {
 	flag.StringVar(&options.uri, "uri", "amqp://guest:guest@localhost:5672",
 		"server uri")
 	flag.Var(&options.headers, "header",
-		"header, value is k:v, that set header[k]=v (much like curl, can be use many times to provide different k)")
+		"header, value is k:v, that set header[k]=v (see usage for details)")
 
 	flag.Usage = func() {
 		s := `
 amqpc [options] routingkey < file
-version: %s 
+version: %s
 
-file is processed using text.template with one argument, the index of message
-index starts at 1
+file is processed using text.template with one argument, the index of message.
+index starts at 1.
 
-eg: publish 10 messages to default exchange ( '' ), routing key central.events, each having id in sequence 1:10
+header option
+=============
+header option MAY be used many times.
+option value MUST match k:v pattern, where k is the key of header, and v its value.
+this is forwarded as header of message in amqp protocol.
 
-  echo '{"id":{{ . }}}' | amqpc -n=10 central.events
+datatype of value
+-----------------
+value is sent as a string unless it matches ^\[(.*)\]$ regular expression.
+then what is sent is is comma separated list of string of first group.
 
-eg: pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
+this is MAY be useful to look like an http header struct.
+(and it has the downcase of NOT being able to send [a] as a header value)
 
-echo 'message nº{{ . }}' | amqpc -n=1 --content-type=application/vnd.me.awesome.1+json somewhere
+examples
+========
+pub 1 message to somewhere with content-type:application/vnd.me.awesome.1+json
 
-eg: pub 1 message to somewhere with header include:[batteries]
+	echo 'message nº{{ . }}' | amqpc --content-type=application/vnd.me.awesome.1+json somewhere
 
-echo 'message nº{{ . }}' | amqpc -n=1 --header=include:[batteries] somewhere
+pub 1 message to somewhere with header include, as a list of values a, b, c
+
+	echo 'message nº{{ . }}' | amqpc --header=include:[a,b,c] somewhere
+
+pub 1 message to somewhere with header include being a,b,c
 
 see
 * http://golang.org/pkg/text/template/
