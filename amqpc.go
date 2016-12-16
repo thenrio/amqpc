@@ -23,7 +23,7 @@ func (h *headers) Set(s string) error {
 	return nil
 }
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 var options struct {
 	concurrency int
