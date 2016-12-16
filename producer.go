@@ -65,7 +65,16 @@ func parse2(header string, table amqp.Table) error {
 func parse3(value string) interface{} {
 	re := regexp.MustCompile("^\\[(.*)\\]$")
 	if match := re.FindStringSubmatch(value); match != nil {
-		return strings.Split(match[1], ",")
+		values := strings.Split(match[1], ",")
+		// this terrible dance is required to have the field properly written
+		// the lib cases on it!
+		//
+		// https://golang.org/doc/faq#convert_slice_of_interface
+		hack := make([]interface{}, len(values))
+		for i, v := range values {
+			hack[i] = v
+		}
+		return hack
 	}
 	return value
 }
