@@ -67,11 +67,18 @@ func parse3(value string) interface{} {
 	if match := re.FindStringSubmatch(value); match != nil {
 		values := strings.Split(match[1], ",")
 		// this terrible dance is required to have the field properly written
-		// the lib cases on it!
+		// the lib cases on []interfaces{}, not []string
 		//
+		// values |> filter \s s==""
+		var prunes []string
+		for _, v := range values {
+			if v != "" {
+				prunes = append(prunes, v)
+			}
+		}
 		// https://golang.org/doc/faq#convert_slice_of_interface
-		hack := make([]interface{}, len(values))
-		for i, v := range values {
+		hack := make([]interface{}, len(prunes))
+		for i, v := range prunes {
 			hack[i] = v
 		}
 		return hack
